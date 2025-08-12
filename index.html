@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Live Currency Watch with Graph</title>
+    <!-- Tailwind CSS for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Chart.js for the graph -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Google Fonts for a clean look -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6; /* A light gray background */
+        }
+    </style>
+</head>
+<body class="flex items-center justify-center min-h-screen p-4">
+
+    <div class="w-full max-w-4xl mx-auto bg-white rounded-2xl shadow-lg p-6 md:p-8">
+        <div class="flex justify-between items-center mb-6">
+            <h1 class="text-2xl font-bold text-gray-800">Live Exchange Rates</h1>
+            <div id="status-indicator" class="w-4 h-4 rounded-full bg-yellow-400 animate-pulse" title="Updating..."></div>
+        </div>
+        <p class="text-gray-500 mb-6 text-sm">Rates are relative to 1 US Dollar (USD).</p>
+        
+        <!-- Main content area with grid layout for larger screens -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <!-- Left side: Currency List -->
+            <div id="currency-container" class="space-y-4">
+                <!-- Loading message -->
+                <div id="loading-message" class="text-center text-gray-500">
+                    <p>Fetching latest rates...</p>
+                </div>
+                <!-- Error message will be injected here if needed -->
+            </div>
+
+            <!-- Right side: Graph -->
+            <div class="w-full h-full flex items-center justify-center">
+                <canvas id="currencyChart"></canvas>
+            </div>
+        </div>
+
+        <div class="text-center text-xs text-gray-400 mt-8">
+            <p>Last updated: <span id="last-updated">N/A</span></p>
+            <p>Rates provided by a free public API.</p>
+        </div>
+    </div>
+
+    <script>
+        // Function to fetch and display currency rates and chart
+        async function fetchCurrencyData() {
+            const container = document.getElementById('currency-container');
+            const loadingMessage = document.getElementById('loading-message');
+            const statusIndicator = document.getElementById('status-indicator');
+            const lastUpdated = document.getElementById('last-updated');
+            const chartCanvas = document.getElementById('currencyChart');
+
+            const apiUrl = 'https://open.er-api.com/v6/latest/USD';
+            const targetCurrencies = {
+                'INR': { name: 'Indian Rupee', flag: '🇮🇳' },
+                'EUR': { name: 'Euro', flag: '🇪🇺' },
+                'CNY': { name: 'Chinese Yuan', flag: '🇨🇳' },
+                'JPY': { name: 'Japanese Yen', flag: '🇯🇵' },
+                'GBP': { name: 'British Pound', flag: '🇬🇧' }
+            };
+
+            try {
+                const response = await fetch(apiUrl);
+                if (!response.ok) throw new Error('Network response was not ok.');
+                const data = await response.json();
+
+                loadingMessage.style.display = 'none';
+                statusIndicator.classList.replace('bg-yellow-400', 'bg-green-500');
+                statusIndicator.title = 'Live';
+                lastUpdated.textContent = new Date().toLocaleString();
+                
+                // --- Render Currency List ---
+                container.innerHTML = ''; // Clear previous content
+                const usdCard = createCurrencyCard('USD', 'US Dollar', '🇺🇸', 1.00);
+                container.innerHTML += usdCard;
+
+                const chartLabels = [];
+                const chartData = [];
+
+                for (const code in targetCurrencies) {
+                    if (data.rates[code]) {
+                        const currency = targetCurrencies[code];
+                        const rate = data.rates[code];
+                        container.innerHTML += createCurrencyCard(code, currency.name, currency.flag, rate);
+                        
+                        // Prepare data for the chart
+                        chartLabels.push(code);
+                        chartData.push(rate);
+                    }
+                }
+
+                // --- Render Chart ---
+                renderChart(chartCanvas, chartLabels, chartData);
+
+            } catch (error) {
+                loadingMessage.style.display = 'none';
+                container.innerHTML = `<p class="text-center text-red-500 font-semibold">Could not fetch rates. Please try again later.</p>`;
+                statusIndicator.classList.replace('bg-yellow-400', 'bg-red-500');
+                statusIndicator.title = 'Error';
+                console.error('Fetch error:', error);
+            }
+        }
+
+        // Helper function to create a currency card element
+        function createCurrencyCard(code, name, flag, rate) {
+            return `
+                <div class="flex items-center justify-between bg-gray-100 p-4 rounded-lg shadow-sm">
+                    <div class="flex items-center">
+                        <span class="text-2xl mr-3">${flag}</span>
+                        <div>
+                            <p class="font-semibold text-gray-800">${code}</p>
+                            <p class="text-sm text-gray-500">${name}</p>
+                        </div>
+                    </div>
+                    <p class="font-bold text-lg text-gray-900">${rate.toFixed(2)}</p>
+                </div>
+            `;
+        }
+
+        // Helper function to render the bar chart
+        function renderChart(canvas, labels, data) {
+            new Chart(canvas, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Value vs USD',
+                        data: data,
+                        backgroundColor: [
+                            'rgba(255, 99, 132, 0.6)',
+                            'rgba(54, 162, 235, 0.6)',
+                            'rgba(255, 206, 86, 0.6)',
+                            'rgba(75, 192, 192, 0.6)',
+                            'rgba(153, 102, 255, 0.6)'
+                        ],
+                        borderColor: [
+                            'rgba(255, 99, 132, 1)',
+                            'rgba(54, 162, 235, 1)',
+                            'rgba(255, 206, 86, 1)',
+                            'rgba(75, 192, 192, 1)',
+                            'rgba(153, 102, 255, 1)'
+                        ],
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: false // Hide legend as it's self-explanatory
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: 'Value'
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Fetch data when the page loads
+        document.addEventListener('DOMContentLoaded', fetchCurrencyData);
+    </script>
+
+</body>
+</html>
